@@ -10,7 +10,7 @@ repositories {
     gradlePluginPortal()
 }
 
-group = "io.github.lowsortwizard"
+group = "io.github.astosolen"
 version = "0.1.0"
 
 java {
@@ -20,13 +20,13 @@ java {
 }
 
 gradlePlugin {
-    website.set("https://github.com/lowsortwizard/hilla-plugin-jackson-enums")
-    vcsUrl.set("https://github.com/lowsortwizard/hilla-plugin-jackson-enums")
+    website.set("https://github.com/astosolen/hilla-plugin-jackson-enums")
+    vcsUrl.set("https://github.com/astosolen/hilla-plugin-jackson-enums")
 
     plugins {
         create("hillaJacksonEnums") {
-            id = "io.github.lowsortwizard.hilla-jackson-enums"
-            implementationClass = "io.github.lowsortwizard.hilla.jackson.enums.HillaJacksonEnumsPlugin"
+            id = "io.github.astosolen.hilla-jackson-enums"
+            implementationClass = "io.github.astosolen.hilla.jackson.enums.HillaJacksonEnumsPlugin"
             displayName = "Hilla Jackson Enums"
             description = "Generates sidecar JSON mappings for Hilla TypeScript enums based on Jackson @JsonProperty annotations."
             tags.set(listOf("hilla", "vaadin", "jackson", "typescript", "enums"))

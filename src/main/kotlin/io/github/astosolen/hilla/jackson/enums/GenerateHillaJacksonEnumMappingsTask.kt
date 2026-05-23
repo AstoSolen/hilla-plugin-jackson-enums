@@ -1,4 +1,4 @@
-package io.github.lowsortwizard.hilla.jackson.enums
+package io.github.astosolen.hilla.jackson.enums
 
 import groovy.json.JsonOutput
 import org.gradle.api.DefaultTask
@@ -8,6 +8,7 @@ import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.net.URLClassLoader
@@ -135,7 +136,7 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
     }
 
     private fun writeJson(
-        outputFile: java.io.File,
+        outputFile: File,
         mappings: Map<String, Map<String, String>>
     ) {
         outputFile.parentFile.mkdirs()
@@ -144,7 +145,7 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         outputFile.writeText(JsonOutput.prettyPrint(json))
     }
 
-    private fun java.io.File.toClassName(classesDir: java.io.File): String? {
+    private fun File.toClassName(classesDir: File): String? {
         val relativePath = relativeTo(classesDir).path
 
         if (!relativePath.endsWith(".class")) {
@@ -153,6 +154,6 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
 
         return relativePath
             .removeSuffix(".class")
-            .replace(java.io.File.separatorChar, '.')
+            .replace(File.separatorChar, '.')
     }
 }
