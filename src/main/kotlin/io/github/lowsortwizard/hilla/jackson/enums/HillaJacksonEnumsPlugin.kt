@@ -1,4 +1,4 @@
-package io.github.astosolen.hilla.jackson.enums
+package io.github.lowsortwizard.hilla.jackson.enums
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
