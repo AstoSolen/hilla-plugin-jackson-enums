@@ -13,17 +13,80 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.net.URLClassLoader
 
+/**
+ * Scans compiled Java classes for enums whose constants carry Jackson's `@JsonProperty`
+ * annotation and emits a sidecar JSON file mapping each constant to its wire value.
+ *
+ * The companion npm package `hilla-plugin-jackson-enums-vite` reads this file to rewrite
+ * Hilla-generated TypeScript enums at Vite serve/build time, keeping the values seen by the
+ * browser aligned with what Jackson actually sends on the wire.
+ *
+ * ## Output format
+ *
+ * ```json
+ * {
+ *   "<fully.qualified.EnumName>": {
+ *     "<JAVA_CONSTANT>": "<wire-value>"
+ *   }
+ * }
+ * ```
+ *
+ * Enums without any `@JsonProperty`-annotated constants are omitted. Constants without the
+ * annotation (or with an empty value) are omitted from their enum's entry.
+ *
+ * ## Annotation resolution
+ *
+ * Looks for both `com.fasterxml.jackson.annotation.JsonProperty` (Jackson 2) and
+ * `tools.jackson.annotation.JsonProperty` (Jackson 3). The first one found on the runtime
+ * classpath is used. If neither is available, an empty sidecar is written and the task exits
+ * gracefully.
+ *
+ * ## Incrementality
+ *
+ * The task is fully Gradle-incremental: [classesDirs] and [runtimeClasspath] are declared as
+ * inputs, [outputFile] as the single output. The task re-runs only when classes or dependencies
+ * change.
+ */
 abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
 
+    /**
+     * Directories containing compiled `.class` files to scan for enums.
+     *
+     * Typically wired by [HillaJacksonEnumsPlugin] to the main source set's `output.classesDirs`,
+     * which includes `build/classes/java/main` for Java projects.
+     */
     @get:InputFiles
     abstract val classesDirs: ConfigurableFileCollection
 
+    /**
+     * Runtime classpath used when loading scanned classes via [URLClassLoader].
+     *
+     * Provides access to Jackson's `@JsonProperty` annotation class and any transitive
+     * dependencies referenced by scanned enums. Marked as `@Classpath` so Gradle ignores
+     * ordering changes when computing the input hash.
+     */
     @get:Classpath
     abstract val runtimeClasspath: ConfigurableFileCollection
 
+    /**
+     * Target file for the emitted sidecar JSON.
+     *
+     * Defaults to `<projectBuildDir>/hilla-jackson-enum-mappings.json` when wired by
+     * [HillaJacksonEnumsPlugin]. The Vite plugin's default search path resolves to this
+     * location for Vaadin projects.
+     */
     @get:OutputFile
     abstract val outputFile: RegularFileProperty
 
+    /**
+     * Walks every directory in [classesDirs], loads each `.class` file via an isolated
+     * [URLClassLoader] backed by [runtimeClasspath], filters to enum types, and writes the
+     * resulting `FQN → constant → wire value` map to [outputFile].
+     *
+     * The classloader uses [ClassLoader.getPlatformClassLoader] as its parent to isolate the
+     * scan from Gradle's own classpath, preventing accidental resolution of Gradle-bundled
+     * versions of Jackson or other libraries.
+     */
     @TaskAction
     fun generate() {
         val existingClassesDirs = classesDirs.files.filter { it.exists() && it.isDirectory }
@@ -79,6 +142,13 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         }
     }
 
+    /**
+     * Resolves Jackson's `JsonProperty` annotation class from the project's runtime classpath.
+     *
+     * Tries Jackson 2's and Jackson 3's fully qualified names in order and returns all that
+     * resolved successfully. Returning an empty list signals that Jackson is not on the
+     * classpath at all — callers treat this as "nothing to scan" and exit gracefully.
+     */
     private fun loadJsonPropertyClasses(
         classLoader: ClassLoader
     ): List<Class<out Annotation>> {
@@ -93,6 +163,14 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         }
     }
 
+    /**
+     * Builds the `constant name → wire value` map for a single enum [clazz].
+     *
+     * Iterates over the enum constants reflectively, looks up the `value()` of any
+     * `@JsonProperty` annotation present (checking each candidate annotation class from
+     * [jsonPropertyClasses]), and collects only non-empty results. Constants without an
+     * annotation are silently skipped.
+     */
     private fun extractEnumMapping(
         clazz: Class<*>,
         jsonPropertyClasses: List<Class<out Annotation>>
@@ -115,6 +193,13 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         return enumMap
     }
 
+    /**
+     * Reads the `value()` of the first matching Jackson `@JsonProperty` annotation on [field].
+     *
+     * Returns `null` if no candidate annotation is present, or if the annotation's `value()`
+     * is missing or empty. Empty strings are treated as absent to avoid emitting useless
+     * `"<constant>": ""` entries into the sidecar.
+     */
     private fun findJsonPropertyValue(
         field: Field,
         jsonPropertyClasses: List<Class<out Annotation>>
@@ -135,6 +220,11 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         return null
     }
 
+    /**
+     * Writes [mappings] to [outputFile] as pretty-printed JSON, creating parent directories
+     * if necessary. Uses Groovy's `JsonOutput` because it is available without adding a
+     * dependency to the Gradle plugin.
+     */
     private fun writeJson(
         outputFile: File,
         mappings: Map<String, Map<String, String>>
@@ -145,6 +235,13 @@ abstract class GenerateHillaJacksonEnumMappingsTask : DefaultTask() {
         outputFile.writeText(JsonOutput.prettyPrint(json))
     }
 
+    /**
+     * Converts a `.class` file path under [classesDir] to its fully qualified class name.
+     *
+     * Example: `com/example/Foo.class` (relative to `build/classes/java/main`) becomes
+     * `com.example.Foo`. Returns `null` for any non-`.class` file so callers can filter
+     * them out cleanly.
+     */
     private fun File.toClassName(classesDir: File): String? {
         val relativePath = relativeTo(classesDir).path
 
