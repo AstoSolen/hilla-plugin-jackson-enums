@@ -73,7 +73,7 @@ The task declares `classesDirs` and `runtimeClasspath` as inputs and the JSON fi
 For typical Vaadin/Hilla projects no configuration is needed. To override defaults (alternative output path, additional class directories, etc.) configure the task directly:
 
 ```kotlin
-import io.github.lowsortwizard.hilla.jackson.enums.GenerateHillaJacksonEnumMappingsTask
+import io.github.astsolen.hilla.jackson.enums.GenerateHillaJacksonEnumMappingsTask
 
 tasks.named<GenerateHillaJacksonEnumMappingsTask>("generateHillaJacksonEnumMappings") {
     outputFile.set(layout.buildDirectory.file("custom-path/enum-mappings.json"))
